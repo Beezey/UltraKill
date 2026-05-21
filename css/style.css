@@ -1,0 +1,799 @@
+        @font-face {
+            font-family: 'UltrakillCustom';
+            src: url('Fonts/VCR_OSD_MONO_1.001.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        :root {
+            --uk-red: #ffffff;
+            --uk-orange: #ffffff;
+            --uk-bg: #050505;
+            --uk-text: #ffffff;
+            --font-main: 'UltrakillCustom', sans-serif;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            background-color: #000000; /* Fond noir pour que la vidéo ne soit pas délavée */
+            color: var(--uk-text);
+            font-family: var(--font-main);
+            font-weight: 400;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        /* Effet de scanlines CRT */
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 3px 100%;
+            pointer-events: none;
+            z-index: 100; /* Remis au dessus de tout pour un effet global cohérent */
+        }
+        body.hide-crt-overlay .crt-overlay {
+            display: none;
+        }
+
+        /* Écran de démarrage (pour l'audio) */
+        .crt-overlay::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at center, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 45%),
+                radial-gradient(circle at center, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.5) 100%);
+            mix-blend-mode: screen;
+        }
+
+        .crt-overlay {
+            opacity: 0.7;
+            animation: crt-flicker 0.12s steps(2, end) infinite;
+        }
+
+        @keyframes crt-flicker {
+            0% { opacity: 0.62; }
+            50% { opacity: 0.74; }
+            100% { opacity: 0.66; }
+        }
+
+        #boot-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 300;
+            cursor: pointer;
+        }
+
+        .boot-prompt {
+            font-size: 2rem;
+            color: #ffffff;
+            animation: heavy-glitch 3s infinite, blink 1.5s infinite;
+        }
+
+        /* Écran de chargement */
+        #loading-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000000; /* Noir total pour cacher la vidéo */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 5;
+            color: var(--uk-red);
+            text-transform: uppercase;
+        }
+
+        .loading-text {
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            margin-bottom: 20px;
+            animation: flicker 0.1s infinite;
+        }
+
+        .progress-bar-container {
+            width: 500px;
+            height: 20px;
+            border: 2px solid var(--uk-red);
+            padding: 2px;
+            display: none; /* Caché au début */
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: var(--uk-red);
+            transition: width 0.1s linear;
+        }
+
+        /* Contenu Principal */
+        #main-content {
+            display: none;
+            padding: 50px;
+            height: 100vh;
+            box-sizing: border-box;
+            margin: 10px;
+            position: relative;
+            transform-origin: center;
+            z-index: 2; /* Au dessus de la vidéo */
+        }
+
+        /* Style du titre dans le menu principal */
+        #main-title-header {
+            position: absolute;
+            top: 50px;
+            left: 50px;
+            font-family: var(--font-main);
+            font-weight: normal;
+            font-size: 3.5rem;
+            letter-spacing: 2px;
+        }
+
+        #main-title-text {
+            color: var(--uk-red);
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 10px;
+            height: 0.8em;
+            background: var(--uk-red);
+            animation: blink 0.7s infinite;
+            vertical-align: middle;
+        }
+
+        /* Positionnement du terminal dans le loader */
+        #terminal-loader-container {
+            text-align: left;
+            width: 500px;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+            letter-spacing: 1px;
+        }
+
+        #terminal-output {
+            color: var(--uk-red);
+            font-family: var(--font-main);
+            line-height: 1.4;
+            text-transform: none; /* Pour garder les minuscules des commandes */
+            white-space: pre-wrap; /* Permet d'afficher les tabulations et espaces */
+        }
+
+        nav {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+        }
+
+        .menu-item {
+            margin: 25px 0;
+            font-size: 1.8rem;
+            cursor: pointer;
+            transition: opacity 0.2s ease-out, transform 0.2s cubic-bezier(0.05, 0.7, 0.1, 1.0), background 0.1s ease, color 0.1s ease, padding-left 0.2s cubic-bezier(0.05, 0.7, 0.1, 1.0);
+            display: block;
+            width: 550px;
+            padding: 15px 30px;
+            position: relative;
+            text-decoration: none;
+            background: transparent;
+            color: #000000;
+            opacity: 0; /* Caché au début */
+            transform: translateY(-20px) translateZ(0); /* Force l'accélération GPU */
+            pointer-events: none; /* Désactive les clics tant qu'invisible */
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+        }
+
+        /* Fond de la case avec la forme spéciale */
+        .menu-item::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #ffffff;
+            z-index: -1;
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+            transition: background 0.2s ease;
+        }
+
+        /* Flèche à gauche */
+        .menu-item::before {
+            content: '';
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            width: 0;
+            height: 0;
+            /* Crée un triangle pointu et net */
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 18px solid #ffffff;
+            visibility: hidden;
+            animation: arrow-move 1s infinite alternate ease-in-out; /* Ralenti pour plus de fluidité */
+        }
+
+        @keyframes arrow-move {
+            0% { transform: translateY(-50%) translateX(0); }
+            100% { transform: translateY(-50%) translateX(10px); }
+        }
+
+        .menu-item.selected {
+            color: #ffffff;
+            padding-left: 60px;
+            transform: scale(1.05) translateZ(0);
+            /* Le filtre suivant crée un contour parfait qui suit la forme découpée */
+            filter: drop-shadow(2px 0 0 #fff) drop-shadow(-2px 0 0 #fff) drop-shadow(0 2px 0 #fff) drop-shadow(0 -2px 0 #fff);
+        }
+
+        .menu-item.selected::after {
+            background: #000000;
+        }
+
+        .menu-item.selected::before {
+            visibility: visible;
+        }
+
+        /* Style pour la vidéo de fond */
+        #bg-video {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 100%;
+            height: 100%;
+            z-index: 1; /* Au dessus du fond noir du body */
+            transform: translate(-50%, -50%);
+            transform-origin: center;
+            object-fit: fill; /* Étire la vidéo pour remplir tout l'écran */
+            opacity: 0.7; /* On augmente l'opacité pour qu'elle soit bien visible */
+            background-color: black; /* Fond de secours */
+        }
+        #bg-video.crt-video-on { animation: crt-video-on 0.4s forwards; }
+        #bg-video.crt-video-off { animation: crt-video-off 1s forwards; }
+
+        /* Volume Control */
+        .volume-control {
+            position: absolute;
+            top: 50px;
+            right: 50px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: #fff;
+            z-index: 10;
+        }
+
+        #volume-slider {
+            -webkit-appearance: none;
+            width: 150px;
+            height: 10px;
+            background: #000;
+            border: 2px solid #fff;
+            outline: none;
+        }
+
+        #volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 15px;
+            height: 25px;
+            background: #fff;
+            cursor: pointer;
+            border: 1px solid #000;
+        }
+
+        .status-panel {
+            position: absolute;
+            bottom: 50px;
+            right: 50px;
+            text-align: right;
+            color: var(--uk-orange);
+        }
+
+        @keyframes flicker {
+            0% { opacity: 0.8; }
+            50% { opacity: 1; }
+            100% { opacity: 0.9; }
+        }
+
+        /* Animation de glitch courte pour le changement de titre */
+        @keyframes title-impact {
+            0% { transform: translate(0); color: #ff0000; text-shadow: 2px 0 #00ffff; }
+            20% { transform: translate(-5px, 2px); color: #00ffff; }
+            40% { transform: translate(5px, -2px); color: #ff0000; }
+            60% { transform: translate(-2px, -2px); color: #ffffff; }
+            80% { transform: translate(2px, 2px); }
+            100% { transform: translate(0); color: #ffffff; text-shadow: none; }
+        }
+
+        .glitch-active {
+            animation: title-impact 0.3s ease-out;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.98); }
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0; }
+        }
+
+        @keyframes heavy-glitch {
+            0%, 97%, 100% { transform: translate(0); text-shadow: none; opacity: 1; }
+            97.5% { transform: translate(-15px, 10px); text-shadow: 5px 0 #ff0000, -5px 0 #00ffff; opacity: 0.8; }
+            98% { transform: translate(15px, -10px); text-shadow: -5px 0 #ff0000, 5px 0 #00ffff; opacity: 0.5; }
+            98.5% { transform: skewX(30deg) scaleY(0.1); opacity: 0.2; }
+            99% { transform: skewX(-30deg) scaleY(1.5); opacity: 1; }
+            99.5% { transform: translate(-5px, 0); text-shadow: 2px 0 #00ff00; }
+        }
+
+        @keyframes glitch-anim {
+            0% { text-shadow: 2px 0 #888, -2px 0 #444; }
+            20% { text-shadow: -2px 0 #aaa, 2px 0 #666; }
+            40% { text-shadow: 1px 0 #fff, -1px 0 #000; }
+            60% { text-shadow: -1px 0 #999, 1px 0 #333; }
+            80% { text-shadow: 2px 0 #888, -2px 0 #444; }
+            100% { text-shadow: 2px 0 #888, -2px 0 #444; }
+        }
+
+        .glitch {
+            animation: glitch-anim 0.3s infinite linear alternate-reverse;
+            display: inline-block;
+        }
+
+        /* Terminal d'erreur F12 */
+        .error-terminal {
+            display: none;
+            position: fixed;
+            width: 800px;
+            height: 600px;
+            background: rgba(15, 0, 0, 0.98);
+            color: #ff0000;
+            z-index: 7000;
+            font-family: var(--font-main);
+            font-size: 1.2rem;
+            line-height: 1.2;
+            box-sizing: border-box;
+            overflow: hidden;
+            flex-direction: column;
+            border: 4px solid #ff0000;
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.5);
+        }
+
+        .error-terminal.success-state {
+            background: rgba(0, 28, 12, 0.98);
+            color: #8cff9a;
+            border-color: #5dff7a;
+            box-shadow: 0 0 50px rgba(93, 255, 122, 0.45);
+        }
+
+        .error-terminal-header {
+            background: #ff0000;
+            color: #000;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            font-weight: bold;
+            font-size: 1.4rem;
+            text-transform: uppercase;
+        }
+
+        .error-terminal.success-state .error-terminal-header {
+            background: #5dff7a;
+            color: #001b08;
+        }
+
+        .security-title {
+            display: inline-block;
+        }
+
+        .security-close-btn {
+            position: relative;
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            padding: 0;
+            background: #100000;
+            cursor: pointer;
+            image-rendering: pixelated;
+            clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px);
+            border: none;
+            outline: none;
+        }
+
+        .security-close-btn::before,
+        .security-close-btn::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 18px;
+            height: 4px;
+            background: currentColor;
+            transform-origin: center;
+        }
+
+        .security-close-btn::before {
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+
+        .security-close-btn::after {
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+
+        .error-terminal.success-state .security-close-btn {
+            background: #06210d;
+            color: #5dff7a;
+        }
+
+        #error-content, .error-content-spawn {
+            padding: 30px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #password-prompt {
+            margin-top: 15%;
+            text-align: center;
+        }
+
+        #password-input {
+            background: transparent;
+            border: none;
+            border-bottom: 3px solid #ff0000;
+            color: #ff0000;
+            font-family: var(--font-main);
+            font-size: 2rem;
+            text-align: center;
+            outline: none;
+            margin-top: 30px;
+            width: 300px;
+        }
+
+        .error-terminal.success-state #password-input {
+            border-bottom-color: #5dff7a;
+            color: #8cff9a;
+        }
+
+        #verified-panel {
+            display: none;
+            margin: auto;
+            width: 320px;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .error-terminal.verified-ready #verified-panel {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .verified-badge {
+            align-self: stretch;
+            padding: 10px 14px;
+            border: 3px solid #5dff7a;
+            background: rgba(4, 20, 10, 0.82);
+            color: #b7ffbf;
+            font-size: 1rem;
+            letter-spacing: 1px;
+            text-align: center;
+            text-transform: uppercase;
+            box-shadow: 0 0 18px rgba(93, 255, 122, 0.18);
+            user-select: none;
+            cursor: default;
+        }
+
+        .verified-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            width: 100%;
+            align-items: center;
+        }
+
+        .verified-menu-item {
+            margin: 0;
+            font-family: var(--font-main);
+            font-size: 1rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            display: block;
+            width: 100%;
+            padding: 12px 20px;
+            position: relative;
+            text-decoration: none;
+            text-transform: uppercase;
+            background: transparent;
+            color: #021108;
+            border: none;
+            text-align: center;
+            transition: color 0.16s ease, filter 0.16s ease;
+        }
+
+        .verified-menu-item::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #8cff9a;
+            z-index: -1;
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+            transition: background 0.16s ease, transform 0.16s cubic-bezier(0.05, 0.7, 0.1, 1.0);
+        }
+
+        .verified-menu-item::before {
+            content: '';
+            position: absolute;
+            left: -28px;
+            top: 50%;
+            width: 0;
+            height: 0;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+            border-left: 14px solid #8cff9a;
+            visibility: hidden;
+        }
+
+        .verified-menu-item:hover,
+        .verified-menu-item:focus-visible {
+            color: #ffffff;
+            /* Crée le contour qui suit la forme découpée */
+            outline: none;
+            filter: drop-shadow(2px 0 0 #8cff9a) drop-shadow(-2px 0 0 #8cff9a) drop-shadow(0 2px 0 #8cff9a) drop-shadow(0 -2px 0 #8cff9a);
+        }
+
+        .verified-menu-item:hover::after,
+        .verified-menu-item:focus-visible::after {
+            background: #000000;
+            transform: scale(1.05);
+        }
+
+        .verified-menu-item:hover::before,
+        .verified-menu-item:focus-visible::before {
+            visibility: visible;
+        }
+
+        #inspect-status {
+            display: none;
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid rgba(140, 255, 154, 0.55);
+            background: rgba(7, 26, 12, 0.86);
+            color: #b7ffbf;
+            font-size: 0.9rem;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .error-terminal.inspect-mode #inspect-status {
+            display: block;
+        }
+
+        #success-logo-inline {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 110px;
+            height: 110px;
+            display: none;
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -50%) scale(1);
+            transform-origin: center;
+            font-size: 0;
+            background: center / contain no-repeat url('Images/Check.png');
+            image-rendering: pixelated;
+            filter: drop-shadow(0 0 6px rgba(93, 255, 122, 0.55)) drop-shadow(0 0 16px rgba(120, 255, 150, 0.35));
+        }
+
+        .error-terminal.success-state #success-logo-inline {
+            display: block;
+            animation: success-double-blink 0.42s steps(1, end) forwards;
+        }
+
+        .error-terminal.verified-ready #success-logo-inline {
+            display: none;
+        }
+
+        .error-terminal.closing-state {
+            animation: success-popup-close 0.45s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+            transform-origin: center;
+        }
+
+        #error-output, .error-output-instance {
+            display: none;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        /* Animation "Old TV" pour le menu */
+        @keyframes crt-on {
+            0% { transform: scaleY(0.001) scaleX(0); opacity: 0; }
+            50% { transform: scaleY(0.001) scaleX(1); opacity: 1; }
+            100% { transform: scaleY(1) scaleX(1); opacity: 1; }
+        }
+        .crt-power-on {
+            animation: crt-on 0.4s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+        }
+
+        /* Animation "Old TV" pour fermer le menu */
+        @keyframes crt-off {
+            0% { transform: scaleY(1) scaleX(1); filter: brightness(1); opacity: 1; }
+            40% { transform: scaleY(0.005) scaleX(1.1); filter: brightness(2); opacity: 1; }
+            100% { transform: scaleY(0.005) scaleX(0); filter: brightness(5); opacity: 0; }
+        }
+        .crt-power-off {
+            animation: crt-off 1s cubic-bezier(0.19, 1, 0.22, 1) forwards;
+        }
+
+        /* Animations spécifiques pour la vidéo (conservant le centrage -50%) */
+        @keyframes crt-video-on {
+            0% { transform: translate(-50%, -50%) scaleY(0.001) scaleX(0); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scaleY(0.001) scaleX(1); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scaleY(1) scaleX(1); opacity: 1; }
+        }
+
+        @keyframes crt-video-off {
+            0% { transform: translate(-50%, -50%) scaleY(1) scaleX(1); filter: brightness(1); opacity: 1; }
+            40% { transform: translate(-50%, -50%) scaleY(0.005) scaleX(1.1); filter: brightness(2); opacity: 1; }
+            100% { transform: translate(-50%, -50%) scaleY(0.005) scaleX(0); filter: brightness(5); opacity: 0; }
+        }
+
+        /* FILTRE ROUGE CLIGNOTANT */
+        .red-alert-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 0, 0, 0.4);
+            z-index: 6000;
+            pointer-events: none;
+            display: none;
+            animation: red-flash 0.5s infinite;
+            will-change: opacity;
+        }
+
+        @keyframes red-flash {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* ÉCRAN NOIR DE CRASH */
+        .success-alert-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background:
+                radial-gradient(circle at center, rgba(180, 255, 200, 0.18) 0%, rgba(180, 255, 200, 0) 42%),
+                rgba(0, 255, 120, 0.28);
+            z-index: 6000;
+            pointer-events: none;
+            display: none;
+            opacity: 0;
+            mix-blend-mode: screen;
+        }
+
+        #success-logo {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18rem;
+            color: #8cff9a;
+            z-index: 9500;
+            pointer-events: none;
+            display: none;
+            opacity: 0;
+            text-shadow: 0 0 30px #5dff7a, 0 0 80px rgba(120, 255, 150, 0.9);
+        }
+
+        .success-flash {
+            animation: success-screen-flash 0.8s ease-out 1;
+        }
+
+        .success-blink {
+            animation: success-double-blink 0.8s ease-out 1;
+        }
+
+        @keyframes success-screen-flash {
+            0% { opacity: 0; }
+            12% { opacity: 0.9; }
+            32% { opacity: 0.18; }
+            48% { opacity: 0.85; }
+            70% { opacity: 0.12; }
+            100% { opacity: 0; }
+        }
+
+        @keyframes success-double-blink {
+            0%, 14%, 30%, 46% { opacity: 0; transform: translate(-50%, -50%) scale(0.92); }
+            15%, 29%, 47%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+
+        @keyframes success-popup-close {
+            0% { opacity: 1; transform: scale(1); filter: brightness(1); }
+            55% { opacity: 1; transform: scaleY(0.08) scaleX(1.06); filter: brightness(1.8); }
+            100% { opacity: 0; transform: scaleY(0.04) scaleX(0); filter: brightness(2.4); }
+        }
+
+        #black-out {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: #000;
+            z-index: 10000;
+            display: none;
+        }
+
+        /* LOGO ATTENTION CLIGNOTANT */
+        #warning-logo {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20rem;
+            color: #ff0000;
+            z-index: 9500; /* Devant les pop-ups et les fissures */
+            pointer-events: none;
+            display: none;
+            text-shadow: 0 0 50px #ff0000, 0 0 100px #ff0000;
+            animation: warning-flicker 0.15s infinite;
+        }
+
+        @keyframes warning-flicker {
+            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
+        /* Animation d'apparition des fissures avec glitch */
+        .screen-crack-active {
+            animation: screen-crack-appear 1s forwards; /* 1 seconde pour apparaître */
+        }
+
+        @keyframes screen-crack-appear {
+            0% { opacity: 0; transform: scale(0.98); filter: brightness(0.5); }
+            20% { opacity: 0.3; transform: scale(1.01); filter: brightness(1.2); }
+            40% { opacity: 0.6; transform: scale(0.99); filter: brightness(0.8); }
+            60% { opacity: 0.8; transform: scale(1.005); filter: brightness(1.1); }
+            80% { opacity: 0.9; transform: scale(0.995); filter: brightness(0.9); }
+            100% { opacity: 1; transform: scale(1); filter: brightness(1); }
+        }
+
+        /* Style pour les boutons de menu verrouillés pendant le chaos */
+        .menu-item.menu-item-locked {
+            opacity: 0.6 !important; /* Réduit l'opacité */
+            pointer-events: none !important; /* Désactive les clics */
+            cursor: not-allowed !important;
+            color: #aaaaaa !important; /* Grise le texte */
+            padding-left: 30px !important; /* Réinitialise le padding de l'état sélectionné */
+            transform: none !important; /* Réinitialise la transformation de l'état sélectionné */
+        }
+
+        .menu-item.menu-item-locked::after { /* Forme de fond du bouton */
+            background: #333333 !important; /* Fond plus sombre */
+            filter: none !important; /* Supprime l'ombre portée de l'état sélectionné */
+        }
+
+        .menu-item.menu-item-locked::before { /* Flèche transformée en cadenas */
+            content: '🔒' !important; /* Symbole Unicode du cadenas */
+            position: absolute !important;
+            left: auto !important; /* Réinitialise la position gauche de la flèche */
+            right: 15px !important; /* Positionne le cadenas à droite */
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: auto !important;
+            height: auto !important;
+            border: none !important; /* Supprime la bordure de la flèche */
+            font-size: 1.5rem !important; /* Taille du cadenas */
+            color: #ffffff !important; /* Couleur blanche pour le cadenas */
+            visibility: visible !important; /* Rend le cadenas visible */
+            animation: none !important; /* Arrête l'animation de la flèche */
+            z-index: 2 !important; /* Assure que le cadenas est au-dessus du texte */
+        }
